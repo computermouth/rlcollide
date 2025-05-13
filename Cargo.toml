@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies]
 rand = "0.9.1"
-raylib = "5.5.1"
+raylib = { git = "https://github.com/computermouth/raylib-rs", branch = "computermouth/rcamera" }
