@@ -11,6 +11,7 @@ fn deg_to_rad(degrees: f32) -> f32 {
     degrees * std::f32::consts::PI / 180.0
 }
 
+#[derive(Copy, Clone)]
 enum StationaryAction {
     Idle,
     Sleeping,
@@ -23,6 +24,7 @@ enum MovingAction {
     Landing,
 }
 
+#[derive(Copy, Clone)]
 enum AirborneAction {
     Jump,
     FreeFall,
@@ -63,7 +65,7 @@ impl Player {
         let mut in_loop = true;
         while in_loop {
             match self.state {
-                PlayerState::Stationary(_) => in_loop = self.act_stationary(),
+                PlayerState::Stationary(a) => in_loop = self.act_stationary(a),
                 PlayerState::Moving(a) => in_loop = self.act_moving(a),
                 PlayerState::Airborne(_) => in_loop = self.act_airborne(),
             }
@@ -74,7 +76,35 @@ impl Player {
         // self.camera.move_up(vel.y);
     }
 
-    fn act_stationary(&mut self) -> bool {false}
+    fn set_state(&mut self, state: PlayerState) -> bool {
+        self.state = state;
+        true
+    }
+
+    fn act_stationary(&mut self, action: StationaryAction) -> bool {
+        // early cancels
+        
+        match action {
+            StationaryAction::Idle => self.act_idle(),
+            StationaryAction::Sleeping => {false},
+        }
+    }
+    fn act_idle(&mut self) -> bool {
+
+        // todo, get floor normal
+        let floor_normal = Vector3::zero();
+
+        if floor_normal.y < 0.3 {
+            return self.set_state(PlayerState::Airborne(AirborneAction::FreeFall))
+        }
+
+        if self.direction != Vector3::zero() {
+            // ->faceAngle[1] = (s16) m->intendedYaw;
+            return self.set_state(PlayerState::Moving(MovingAction::Walking))
+        }
+
+        false
+    }
     fn act_moving(&mut self, action: MovingAction) -> bool {
         // early cancels
 
@@ -88,17 +118,21 @@ impl Player {
 
     fn act_walking(&mut self) -> bool {
 
-        // if change action
-        // return true;
+        // if KEY_SPACE
+        // set(Airborne())
 
         let start_pos = self.camera.position;
 
         self.update_walking_speed();
 
         match self.perform_ground_step() {
-            _ => false
+            // LEFT_GROUND => set(FreeFall)
+            // NO_CHANGE => {}
+            // HIT_WALL => change_dir
+            _ => todo!()
         }
 
+        false
     }
 
     fn perform_ground_step(&self) -> bool { false }
