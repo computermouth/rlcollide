@@ -1,5 +1,7 @@
 use raylib::prelude::*;
 
+mod collide;
+
 const WINDOW_WIDTH: i32 = 1280;
 const WINDOW_HEIGHT: i32 = 720;
 
@@ -36,6 +38,12 @@ enum PlayerState{
     Airborne(AirborneAction),
 }
 
+enum StepResult {
+    Air,
+    Ground,
+    Wall,
+}
+
 struct Player {
     camera: Camera3D,
     state: PlayerState,
@@ -45,7 +53,28 @@ struct Player {
     frame_time: f32,
 }
 
+// Movedata lets us pass by struct to reduce arg passing overhead
+struct MoveData {
+    // only need it's normal
+    hit_surface_normal: Option<Vector3>,
+    // wall might only need to be it's normal
+    wall_surface: Option<collide::Surface>,
+    floor_surface: Option<collide::Surface>,
+    // not sure if we even need
+    ceil_surface: Option<collide::Surface>,
+    intended_pos: Vector3, // Position we believe to be a good enough approximation for where player can go
+    goal_pos: Vector3,     // Position we originally wanted to move towards
+    floor_height: f32,
+    ceil_height: f32,
+    player_height: f32,
+    snap_to_floor: bool,
+    biggest_valid_move: f32, // How much we managed to move
+}
+
 impl Player {
+
+    const HEIGHT: f32 = 60.;
+
     pub fn update(&mut self, rl: &mut RaylibHandle) {
         let md = rl.get_mouse_delta();
         let mouse_spd = 0.0675;
@@ -67,7 +96,7 @@ impl Player {
             match self.state {
                 PlayerState::Stationary(a) => in_loop = self.act_stationary(a),
                 PlayerState::Moving(a) => in_loop = self.act_moving(a),
-                PlayerState::Airborne(_) => in_loop = self.act_airborne(),
+                PlayerState::Airborne(a) => in_loop = self.act_airborne(a),
             }
         }
     
@@ -85,11 +114,11 @@ impl Player {
         // early cancels
         
         match action {
-            StationaryAction::Idle => self.act_idle(),
+            StationaryAction::Idle => self.act_stationary_idle(),
             StationaryAction::Sleeping => {false},
         }
     }
-    fn act_idle(&mut self) -> bool {
+    fn act_stationary_idle(&mut self) -> bool {
 
         // todo, get floor normal
         let floor_normal = Vector3::zero();
@@ -109,14 +138,36 @@ impl Player {
         // early cancels
 
         match action {
-            MovingAction::Walking => self.act_walking(),
+            MovingAction::Walking => self.act_moving_walking(),
             MovingAction::Sliding => {false}
             MovingAction::Landing => {false}
         }
     }
-    fn act_airborne(&mut self) -> bool {false}
+    fn act_airborne(&mut self, action: AirborneAction) -> bool {
+        // early cancels
+        match action {
+            AirborneAction::Jump => { false },
+            AirborneAction::FreeFall => { self.act_airborne_freefall()}
+        }
+    }
 
-    fn act_walking(&mut self) -> bool {
+    fn act_airborne_freefall(&mut self) -> bool {
+
+        // if KEY_Z
+        // return set(GroundPound())
+
+        // match FreeFall(i) {
+        // general_fall => set_animation_general_fall()
+        // fall_from_slide => set_animation_fall_from_slide()
+        // }
+
+        // common_air_action_step(m, ACT_FREEFALL_LAND, animation, AIR_STEP_CHECK_LEDGE_GRAB);
+        self.perform_air_step();
+
+        false
+    }
+
+    fn act_moving_walking(&mut self) -> bool {
 
         // if KEY_SPACE
         // set(Airborne())
@@ -135,7 +186,74 @@ impl Player {
         false
     }
 
-    fn perform_ground_step(&self) -> bool { false }
+    fn perform_ground_step(&self) -> StepResult { StepResult::Ground }
+
+    fn perform_air_step(&self) -> StepResult {
+
+        let intended_pos = self.camera.position + self.velocity;
+        // not sure about snap_to_floor
+        let step_result = self.perform_step(intended_pos, false);
+
+        // todo
+        // if (m->vel[1] >= 0.0f) {
+        //     m->peakHeight = m->pos[1];
+        // }
+        // apply_gravity(m);
+     
+        // m->marioObj->pos[0] = m->pos[0];
+        // m->marioObj->pos[1] = m->pos[1];
+        // m->marioObj->pos[2] = m->pos[2];
+    
+        // m->marioObj->moveAngle[0] = 0;
+        // m->marioObj->moveAngle[1] = m->faceAngle[1];
+        // m->marioObj->moveAngle[2] = 0;
+
+        step_result
+    }
+
+    // should return enum
+    fn perform_step(&self, goal_pos: Vector3, snap_to_floor: bool) -> StepResult {
+
+        let is_crouching = false;
+
+        let mut move_result = MoveData {
+            hit_surface_normal: todo!(),
+            wall_surface: todo!(),
+            floor_surface: todo!(),
+            ceil_surface: todo!(),
+            intended_pos: goal_pos, // counterintuitively
+            goal_pos: Vector3::zero(), // counterintuitively
+            floor_height: todo!(),
+            ceil_height: todo!(),
+            player_height: match is_crouching {
+                true => Player::HEIGHT / 2.,
+                false => Player::HEIGHT,
+            },
+            snap_to_floor,
+            biggest_valid_move: todo!(),
+        };
+
+        for _ in 0..2 {
+            self.check_move_end_position(&mut move_result)
+
+        }
+
+        todo!()
+    }
+
+    fn check_move_end_position(&self, move_result: &mut MoveData) {
+        move_result.hit_surface_normal = None;
+        let move_vector = move_result.intended_pos - self.camera.position;
+        let move_size = move_vector.length();
+        if move_size >= 0. {
+            return;
+        }
+
+        let clip_vector = move_vector * move_size;
+        let middle = self.camera.position + move_result.player_height / 2.;
+        let res = collide::find_surface_on_ray(middle, clip_vector);
+
+    }
 
     fn update_walking_speed(&mut self) {
         // check floor slope
@@ -170,7 +288,7 @@ fn main() {
             Vector3::new(0.0, 1.0, 0.0),
             90.0,
         ),
-        state: PlayerState::Stationary(StationaryAction::Idle),
+        state: PlayerState::Airborne(AirborneAction::FreeFall),
         speed: 10.0,
         direction: Vector3::zero(),
         velocity: Vector3::zero(),
