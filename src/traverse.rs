@@ -1,23 +1,22 @@
-use std::f32;
 
-use raylib::prelude::*;
+use raylib::collision;
+use raylib::math::{Ray, Vector3};
 
 #[derive(Clone, Copy)]
 pub struct Surface {
     normal: Vector3,
     vertices: [Vector3;3],
-    lower_y: f32,
-    upper_y: f32,
 }
-
-// should be determined at map compile time by
-// farthest distance from 0, 0, 0
-const GRID_SIZE: f32 = 10.0;
-
 
 fn sign(x: i64) -> i64 {
     (x > 0) as i64 - (x < 0) as i64
 }
+
+fn visit(x: i64, y: i64, z: i64) {
+	eprintln!("[ {}, {}, {} ]", x, y, z);
+}
+
+const GRID_SIZE: f32 = 10.0;
 
 pub fn find_surface_on_ray (origin: Vector3, delta: Vector3) -> Option<(Vector3, Vector3)>
 {
@@ -75,6 +74,8 @@ pub fn find_surface_on_ray (origin: Vector3, delta: Vector3) -> Option<(Vector3,
     // total_steps
     let n = ax+ay+az;
     for _ in 0..=n {
+
+        visit(x, y, z);
         
         // for all triangles in cell
         for surface in get_surfaces_in_cell(x as u32, y as u32, z as u32) {
@@ -97,7 +98,6 @@ pub fn find_surface_on_ray (origin: Vector3, delta: Vector3) -> Option<(Vector3,
         if out_hit.is_some() {
             return out_hit;
         }
-
 
         if exy < 0 {
             if exz < 0 {
@@ -124,4 +124,30 @@ pub fn find_surface_on_ray (origin: Vector3, delta: Vector3) -> Option<(Vector3,
     None
 }
 
-fn get_surfaces_in_cell(x: u32, y: u32, z: u32) -> Vec<Surface> { vec![] }
+
+fn get_surfaces_in_cell(x: u32, y: u32, z: u32) -> Vec<Surface> {
+    let mut surfs = vec![vec![vec![]]];
+
+    surfs[0][0][0] = Surface{ 
+        normal: Vector3::zero(),
+        vertices: [Vector3::zero(), Vector3::zero(), Vector3::zero()]
+    };
+
+    vec![]
+}
+
+fn main(){
+
+    let mut args = std::env::args();
+    if args.len() != 7 {
+        eprintln!("  USAGE: {} x y z dx dy dz", args.nth(0).unwrap());
+        return;
+    }
+
+    let nums: Vec<_> = args.skip(1).map(|a| a.parse().unwrap()).collect();
+	
+	find_surface_on_ray(
+        Vector3 { x: nums[0], y: nums[1], z: nums[2] },
+        Vector3 { x: nums[3], y: nums[4], z: nums[5] },
+        );
+}

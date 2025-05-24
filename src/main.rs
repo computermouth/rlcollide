@@ -1,6 +1,7 @@
 use raylib::prelude::*;
 
 mod collide;
+mod traverse;
 
 const WINDOW_WIDTH: i32 = 1280;
 const WINDOW_HEIGHT: i32 = 720;
@@ -214,6 +215,7 @@ impl Player {
     // should return enum
     fn perform_step(&self, goal_pos: Vector3, snap_to_floor: bool) -> StepResult {
 
+        // todo, move into Ground states
         let is_crouching = false;
 
         let mut move_result = MoveData {
@@ -245,7 +247,7 @@ impl Player {
         move_result.hit_surface_normal = None;
         let move_vector = move_result.intended_pos - self.camera.position;
         let move_size = move_vector.length();
-        if move_size >= 0. {
+        if move_size <= 0. {
             return;
         }
 
